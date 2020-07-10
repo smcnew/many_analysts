@@ -62,8 +62,10 @@ response <- c(
 )
 par(mfrow = c(4,2))
 for(i in 1:length(response)){
-  dplyr::select(tit, response[i]) %>% boxplot(., main = response[i]) #boxplot
-  dplyr::select(tit, response[i]) %>%
+  tit2 <- tit
+  tit2$chick_survival_to_first_breed_season <- as.numeric(as.character(tit$chick_survival_to_first_breed_season))
+  dplyr::select(tit2, response[i]) %>% boxplot(., main = response[i]) #boxplot
+  dplyr::select(tit2, response[i]) %>%
     pull(.) %>% plot (x = ., y = 1:length(.), ylab="order of data", xlab= response[i]) #Dotplot index ~ value
 }
 
@@ -79,11 +81,14 @@ predictors <- c(
 )
 par(mfrow = c(5,2), mar=c(4,2,2,0))
 for(i in 1:length(predictors)){
-  dplyr::select(tit, predictors[i]) %>% boxplot(., main = predictors[i]) #boxplot
-  dplyr::select(tit, predictors[i]) %>%
+  tit2 <- tit
+  tit2$rear_nest_trt <- as.numeric(as.character(tit2$rear_nest_trt))
+  dplyr::select(tit2, predictors[i]) %>% boxplot(., main = predictors[i]) #boxplot
+  dplyr::select(tit2, predictors[i]) %>%
     pull(.) %>% plot (x = ., y = 1:length(.), ylab="order of data", xlab= predictors[i]) #Dotplot index ~ value
 }
 
+dplyr::select(tit, rear_nest_trt) %>% pull %>% as.character %>% as.numeric %>% boxplot()
 # weird patterns in LD because sheet was sorted in chronological order
 
 # 2. Look for homogeneity of variance: sure, looks like trt 5 is smaller than others
@@ -92,8 +97,8 @@ boxplot(day_14_tarsus_length ~ rear_nest_trt, tit) #boxes are about the same siz
 boxplot(day_14_weight ~ rear_nest_trt, tit) #boxes are about the same size, more outliers in 5
 
 # 3. Check for normality, why not
-qqnorm(tit$day_14_tarsus_length[tit$rear_nest_trt==7]) # 5 and 7 not super normal but let's move on
-qqline(tit$day_14_tarsus_length[tit$rear_nest_trt==7])
+qqnorm(tit$day_14_tarsus_length[tit$rear_nest_trt==5]) # 5 and 7 not super normal but let's move on
+qqline(tit$day_14_tarsus_length[tit$rear_nest_trt==5])
 
 
 # Check for covariance among predictors
@@ -101,7 +106,7 @@ head(tit)
 tit %>% select(predictors, response) %>% pairs() # clutch, brood, and fledglings correlated
 
 
-# Ok I'm satisfied the data are good enough.
+# Ok I'm satisfied the data are not super wonky.
 
 
 # Analysis ----------------------------------------------------------------
@@ -128,10 +133,11 @@ names(tit)
 # 3. Chick survival to next season
 #
 #
-# Fixed effects: rear_nest_trt, rear_Cs_at_start_of_rearing, hatch_nest_LD,
+# Fixed effects: rear_nest_trt,  hatch_nest_LD,
 # home_or_away, hatch_nest_CS, sex (maybe interacted?), hatch_nest_CS
-# Random effects: hatch_year, rear_Box within rear_area, rearing brood
-# ALL THE RANDOM EFFECTS: ids of all parents
+# (Judgement call: include rear_Cs_at_start_of_rearing? NO for now, because it's a post-treatment variable)
+# ALL THE RANDOM EFFECTS: ids of all parents, hatch_year, rear_Box within rear_area
+# rearing brood
 
 
 
@@ -141,11 +147,11 @@ names(tit)
 # effect of treatment (for increased but not decreased brood size)
 summary(
   lmer(
-    day_14_weight ~ rear_nest_trt +
-      rear_Cs_at_start_of_rearing +
+    day_14_weight ~
+      rear_nest_trt +
       hatch_nest_LD +
       home_or_away +
-      #hatch_nest_CS + #not significant
+      hatch_nest_CS +
       chick_sex_molec +
       (1 | hatch_year) + (1 | rear_nest_breed_ID) +
       (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
@@ -157,8 +163,7 @@ summary(
 
 summary (lmer(
     day_14_tarsus_length ~
-      #rear_nest_trt + #not sig
-      rear_Cs_at_start_of_rearing +
+      rear_nest_trt +
       #hatch_nest_LD + #not sig
       home_or_away +
       #hatch_nest_CS + #not sig
@@ -170,16 +175,21 @@ summary (lmer(
   )
 )
 
-model.sel(mod1, mod2)
 
 summary(
   glmer(
-    chick_survival_to_first_breed_season ~ rear_nest_trt + rear_Cs_at_start_of_rearing + hatch_nest_LD +
-      home_or_away + hatch_nest_CS + chick_sex_molec +
+    chick_survival_to_first_breed_season ~
+      rear_nest_trt +
+      hatch_nest_LD +
+      #home_or_away +
+      #hatch_nest_CS +
+      #chick_sex_molec +
       (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
       (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
-      (1 |hatch_year) + (1|rear_nest_breed_ID) +
-      (1 | hatch_Area / hatch_Box), data = tit, family = "binomial"
+      (1 | hatch_year) + (1 | rear_nest_breed_ID) +
+      (1 | hatch_Area / hatch_Box),
+    data = tit,
+    family = "binomial"
   )
 )
 
@@ -232,10 +242,46 @@ nest <- dplyr::select(tit, hatch_year, rear_nest_breed_ID, rear_area, rear_Box, 
 
 nest[duplicated(nest$rear_nest_breed_ID),] # no duplicates = no issues in data entry
 head(nest)
-
-
 nest$died <- nest$rear_Cs_at_start_of_rearing - nest$number_chicks_fledged_from_rear_nest #change in brood size from start to d 14; i.e. dead nestlings
-aggregate(died ~ rear_nest_trt, data = nest, mean) #more nestlings died in the increased treatment
+
+
+
+# Variance in mass
+
+head(tit)
+variances <- aggregate(day_14_weight ~ rear_nest_breed_ID, tit, var)
+variances_tar <- aggregate(day_14_tarsus_length ~ rear_nest_breed_ID, tit, var)
+variances <- merge(variances, variances_tar)
+names(variances)[2:3] <- c("weight_var", "tarsus_var")
+nest <- merge(nest,variances)
+head(nest)
+
+
+# Can we predict that competition will mean more variance in size?
+# But what if variance in size naturally increases with clutch size?
+pvals <- NULL
+for (i in 1:1000) {
+  ns <- seq(from = 4, to = 16) %>% rep(.,10)
+  ys <- lapply(ns, function(x) rnorm(x)) %>% lapply(., function(x) var(x)) %>% unlist()
+  pvals[i] <- summary(lm(ys ~ ns))$coefficients[2,4]
+}
+hist1 <- hist(pvals) #looks pretty uniform (i.e. no consistent relationship between n and var, so let's forge ahead)
+
+
+summary(lmer(weight_var~ rear_nest_trt +
+               rear_nest_LD +
+               (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+               (1 | hatch_year) +
+               (1 | rear_area / rear_Box),
+             data = nest,))
+
+summary(lmer(tarsus_var~ rear_nest_trt +
+               #rear_nest_LD +
+               (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+               (1 | hatch_year) +
+               (1 | rear_area / rear_Box),
+             data = nest,))
+
 
 # Test fledging success
 summary(glmer(
@@ -248,46 +294,7 @@ summary(glmer(
   family = "binomial"
 ))
 head(nest)
-
-
-
-# Variance in mass
-
-head(tit)
-variances <- aggregate(day_14_weight ~ rear_nest_breed_ID, tit, var)
-variances_tar <- aggregate(day_14_tarsus_length ~ rear_nest_breed_ID, tit, var)
-variances <- merge(variances, variances_tar)
-names(variances)[2:3] <- c("weight_var", "tarsus_var")
-nest <- merge(nest,variances)
-
-# Can we predict that competition will mean more variance in size?
-# But what if variance in size naturally increases with clutch size?
-pvals <- NULL
-for (i in 1:1000) {
-  ns <- seq(from = 4, to = 25) %>% rep(.,10)
-  ys <- lapply(ns, function(x) rnorm(x)) %>% lapply(., function(x) var(x)) %>% unlist()
-  pvals[i] <- summary(lm(ys ~ ns))$coefficients[2,4]
-}
-hist(pvals) #looks pretty uniform (i.e. no consistent relationship between n and var, so let's forge ahead)
-
-
-summary(lmer(weight_var~ rear_nest_trt +
-               #rear_Cs_at_start_of_rearing +
-               rear_nest_LD +
-               (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
-               (1 | hatch_year) +
-               (1 | rear_area / rear_Box),
-             data = nest,))
-
-summary(lmer(tarsus_var~ rear_nest_trt +
-               #rear_nest_LD +
-               rear_Cs_at_start_of_rearing +
-               (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
-               (1 | hatch_year) +
-               (1 | rear_area / rear_Box),
-             data = nest,))
-head(nest)
-
+aggregate(died ~ rear_nest_trt, data = nest, mean) #more nestlings died in the increased treatment
 # Useful Plots ------------------------------------------------------------
 
 # Mass vs. Brood size

@@ -1,0 +1,7 @@
+base
+dplyr
+Matrix
+lme4
+lmerTest
+sjPlot
+reshape2

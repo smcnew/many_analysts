@@ -1,0 +1,349 @@
+---
+title: "Many_Analysts"
+author: 'Analyst: Sabrina McNew'
+date: "7/10/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+#### Project info: https://osf.io/34fzc/
+#### Contact: sm983@cornell.edu
+  
+### Project goals
+The goal of this project is to analyze a dataset of breeding blue tits 
+in order to answer the question "does competition affect growth of tit nestlings?"
+
+### Project approach outline (updated July 10, 2020)
+Use linear models to test for sources of variation in tarsus length, nestling 
+mass, and fledging success. Covariates include, treatment (increased, decreased,
+or control brood size), brood size, lay date, nestling sex, whether the nestling 
+was transported into the nest or not. Random effects include: parent ids and geographical
+identifiers/structures of the nest, year. 
+
+Secondarily I tested whether the *variance* in tarsus length and width within 
+a brood varies with clutch size or treatment. 
+
+### Methods: Analyses (as written for a manuscript) 
+#### Data verification 
+Data were checked for completeness and exploratory analyses were conducted following
+best-practices described by Zuur et al. (2010 Methods Ecol Evol). Briefly, 
+I plotted key predictor and response variables to visually inspect their distribution.
+I looked to make sure they were uniformly or normally distributed (depending on 
+common-sense expectation of the variable) and looked for outliers that would 
+indicate mis-entry typos etc. Second, I looked for homogeneity in the variance 
+of different treatment groups. For both tarsus length and mass there was slightly
+more variance in brood-increased treatment compared to control and brood-reduced treatments. 
+However, overall the differences were minor. Finally, I checked for normality 
+in continuously distributed response variables, such as tarsus. There were slight 
+departures from normality in both the control and brood-increased treatment 
+groups; however, these departures are common in ecological datasets and linear 
+models are fairly robust to small departures in normality (). 
+
+#### Analysis
+```{r, echo = F, message=F}
+library(dplyr)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(reshape2)
+```
+
+##### Individual nestling growth and survival
+I used linear mixed models (LMMs) and generalized linear mixed models (GLMMs) to test for 
+differences among treatments in nestling size (day 14 tarsus length and mass) 
+and fitness (fledging success and next-year survival). Tarsus length and mass
+were modeled with a Gaussian distribution (i.e. LMM); fledging success and 
+next-year survival were modeled with a binomial distribution (i.e. logistic GLMM).  
+
+In addition to treatment, models included a suite of co-variates
+that also could have influenced nestling size and fitness. Full models included 
+the fixed effects of treatment, hatch nest lay date, whether the nestling was in
+its hatch nest or whether it had been experimentally moved to another nest, the 
+clutch size of the nest from which the nestling hatched, and the molecular sex 
+of the nestling. Non-significant factors were removed from the final model. 
+Models also included the random effects of hatch year, the rearing nest id, rearing 
+nestbox "nested" within nesting area, and the id of the rearing mother, rearing father, 
+and genetic mother and genetic father.
+
+I secondarily repeated these analyses by replacing the fixed effect of treatment
+with the rearing nest clutch size in models of nestling tarsus and mass. Because
+the brood size manipulation was designed to increase variation in brood size in 
+a controlled and unbiased way, I used the post-manipulation brood size to more directly investigate
+the relationship between the number of nestlings in the nest and nestling growth. 
+
+##### Reproductive success by brood 
+Second I used linear mixed effects models to study the effects of treatment 
+on brood-level fledging success and variance in nestling quality within the brood.
+If competition affects nestling growth, then nests in the brood-enlarged treatment
+will have more variance within the brood in nestling mass and tarsus length, and
+will have lower percent fledging success.  
+Mass 
+
+As a preliminary control to test whether variance is positively correlated with 
+brood size by chance, I simulated data for 130 nests ranging in clutch size 
+from 4 to 16. I then simulated masses for each nestling assuming that masses were
+normally distributed and then calculated the variance in mass for each clutch.
+Finally, I used a linear model to test for a significant relationship between 
+brood size and variance in mass for the brood. In 1000 simulations the p values were slightly right-
+skewed, but overall were fairly uniformly distributed. Thus, there does not 
+seem to be a null expectation that variance should increase with brood size. 
+
+```{r, echo=FALSE}
+pvals <- NULL
+for (i in 1:1000) {
+  ns <- seq(from = 4, to = 16) %>% rep(.,10)
+  ys <- lapply(ns, function(x) rnorm(x)) %>% lapply(., function(x) var(x)) %>% unlist()
+  pvals[i] <- summary(lm(ys ~ ns))$coefficients[2,4]
+}
+hist(pvals) #looks pretty uniform (i.e. no consistent relationship between n and var, so let's forge ahead)
+
+```
+
+Then, I used LMMs to test for an effect of treatment on brood mass variance and 
+brood tarsus length variance. Models additionally included the fixed effect 
+of rearing nest lay date as well as the random effects of year, rearing nest parent 
+ids, and rearing nest box nested within rearing nest area. 
+
+Finally, I tested for a difference in fledging success among treatments 
+using a binomial GLMM where the response was the paired variable of the number of 
+nestlings that fledged and the number that died for each nest. The model included 
+the fixed effects of rearing nest lay date as well as the random effects of year, rearing nest parent 
+ids, and rearing nest box nested within rearing nest area. 
+
+### Results
+
+#### Individual nestling success 
+```{r, echo = T, cache = T}
+#Load data 
+tit <- read.csv("data/blue_tit_data_updated_2020-04-18.csv")
+
+# Turn these integer columns into factors
+tit <- tit %>%  mutate_at(vars(hatch_year,
+                        Extra.pair_paternity,
+                        rear_nest_trt,
+                        home_or_away,
+                        chick_sex_molec,
+                        chick_survival_to_first_breed_season
+
+), as.factor)
+tit$rear_nest_trt <- relevel(tit$rear_nest_trt, ref = "7")
+
+```
+
+Nestling mass at day 14 was significantly lower in the brood-increased treatment 
+compared to control nestlings (estimated difference in means: -0.91g; 
+95%CI -1.18 - -0.64g);  p < 0.001; Table 1). However, nestling mass in the brood-reduced
+treatment was not significantly different from controls (p = 0.69; Table 1). 
+Hatch date of the nest, whether the nestling was reared in its natal brood or was 
+transplanted, hatch nest clutch size, and nestling sex all also had significant 
+effects on nestling mass (Table 1). 
+
+```{r, warning=FALSE, cache=T}
+# Table 1. Code and results for nestling mass model
+mod1 <-(
+  lmer(
+    day_14_weight ~
+      rear_nest_trt +
+      hatch_nest_LD +
+      home_or_away +
+      hatch_nest_CS +
+      chick_sex_molec +
+      (1 | hatch_year) + (1 | rear_nest_breed_ID) +
+      (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+      (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
+      (1 | rear_area / rear_Box),
+    data = tit
+  )
+)
+tab_model(mod1)
+```
+***
+
+Nestling tarsus length at day 14 was also significantly smaller in enlarged broods,
+compared to controls, though again there was no difference between reduced broods 
+and controls (Table 2). Hatch nest lay date and hatch nest clutch size had no
+significant effect on tarsus length; however, transplanted nestlings and male 
+nestlings had significantly longer tarsi than nestlings reared in their hatch nest
+and female nestlings (Table 2). 
+
+```{r, warnings = F, cache = T, echo = F}
+mod2 <- (lmer(
+    day_14_tarsus_length ~
+      rear_nest_trt +
+      #hatch_nest_LD + #not sig
+      home_or_away +
+      #hatch_nest_CS + #not sig
+      chick_sex_molec +
+      (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+      (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
+      (1 |hatch_year) +(1|rear_nest_breed_ID) +
+      (1 | hatch_Area / hatch_Box), data = tit
+  )
+)
+tab_model(mod2, title ="Table 2.")
+```
+***
+
+Nestlings were slightly more likely to survive to their first breeding season
+in the brood-reduced treatment (Odds ratio estimate: 1.70, 95%CI 1.00 - 2.91; p = 0.05,
+Table 3). However, there was no difference in between enlarged broods and controls. 
+
+```{r, echo = F, cache = T, warning = F }
+mod3 <- (
+  glmer(
+    chick_survival_to_first_breed_season ~ 
+      rear_nest_trt + 
+      hatch_nest_LD +
+      #home_or_away + 
+      #hatch_nest_CS + 
+      #chick_sex_molec +
+      (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+      (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
+      (1 | hatch_year) + (1 | rear_nest_breed_ID) +
+      (1 | hatch_Area / hatch_Box),
+    data = tit,
+    family = "binomial"
+  )
+)
+tab_model(mod3, title = "Table 3.")
+```
+***
+#### Using brood size as a predictor
+
+Models using the number of nestlings post-manipulation revealed similar effects 
+on day 14 nestling mass and tarsus size. The number of nestlings in the brood was 
+negatively associated with day 14 weight (Table 4). 
+```{r, cache=T, echo = F, warning= F}
+mod4 <- (
+  lmer(
+    day_14_weight ~
+      rear_Cs_at_start_of_rearing +
+      hatch_nest_LD +
+      home_or_away +
+      #hatch_nest_CS + #not significant
+      chick_sex_molec +
+      (1 | hatch_year) + (1 | rear_nest_breed_ID) +
+      (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+      (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
+      (1 | rear_area / rear_Box),
+    data = tit
+  )
+)
+tab_model(mod4, title = "Table 4.")
+```
+***
+Likewise, the number of nestlings in the brood was negatively associated with 
+day 14 tarsus length (Table 5). 
+```{r, cache=T, echo = F, warning= F}
+mod5 <- (lmer(
+  day_14_tarsus_length ~
+    rear_Cs_at_start_of_rearing +
+    #hatch_nest_LD + #not sig
+    home_or_away +
+    #hatch_nest_CS + #not sig
+    chick_sex_molec +
+    (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+    (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
+    (1 |hatch_year) +(1|rear_nest_breed_ID) +
+    (1 | hatch_Area / hatch_Box), data = tit
+)
+)
+tab_model(mod5, title = "Table 5.")
+```
+***
+
+#### Results by nest
+
+```{r, cache = T, warning = F}
+# Reshape data 
+nest <- dplyr::select(tit, hatch_year, rear_nest_breed_ID, rear_area, rear_Box, rear_mom_Ring, rear_dad_Ring,
+               rear_nest_trt, rear_nest_LD, rear_nest_CS,rear_d0_rear_nest_brood_size,
+               rear_Cs_out, rear_Cs_in, net_rearing_manipulation, rear_Cs_at_start_of_rearing,
+               d14_rear_nest_brood_size, number_chicks_fledged_from_rear_nest) %>% distinct()
+nest$died <- nest$rear_Cs_at_start_of_rearing - nest$number_chicks_fledged_from_rear_nest #change in brood size from start to d 14; i.e. dead nestlings
+
+nest[duplicated(nest$rear_nest_breed_ID),] # no duplicates = no issues in data entry
+
+variances <- aggregate(day_14_weight ~ rear_nest_breed_ID, tit, var)
+variances_tar <- aggregate(day_14_tarsus_length ~ rear_nest_breed_ID, tit, var)
+variances <- merge(variances, variances_tar)
+names(variances)[2:3] <- c("weight_var", "tarsus_var")
+nest <- merge(nest,variances)
+head(nest)
+```
+
+There was significantly more variance in nestling mass among enlarged broods 
+compared to controls; however, there was no difference between reduced broods and control (Table 6).
+```{r, cache = T, warning = F, echo = F}
+mod6 <- (lmer(weight_var~ rear_nest_trt +
+               rear_nest_LD +
+               (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+               (1 | hatch_year) +
+               (1 | rear_area / rear_Box),
+             data = nest,))
+tab_model(mod6, title = "Table 6")
+```
+***
+
+Likewise, there was more variance in tarsus length among enlarged broods compared
+to controls but no significant difference between reduced broods and controls (Table 7). 
+
+```{r, cache = T, warning = F, echo = F}
+mod7 <- (lmer(tarsus_var~ rear_nest_trt +
+               #rear_nest_LD +
+               (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+               (1 | hatch_year) +
+               (1 | rear_area / rear_Box),
+             data = nest,))
+tab_model(mod7, title = "Table 7")
+
+```
+
+***
+Fledging success was significantly lower in enlarged broods; however, it did 
+not differ significantly between controls and reduced broods (Table 8).
+```{r, warning = F, echo = F, cache = T }
+mod8 <- (glmer(
+  cbind(number_chicks_fledged_from_rear_nest, died) ~ rear_nest_trt +
+    #rear_nest_LD +
+    (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+    (1 | hatch_year) +
+    (1 | rear_area / rear_Box),
+  data = nest,
+  family = "binomial"
+))
+tab_model(mod8, title = "Table 8")
+```
+
+***
+
+On average, enlarged broods failed to fledge ~ 2 nestlings, while mortality 
+rates for control and reduced broods was < 1. 
+```{r}
+aggregate(died ~ rear_nest_trt, data = nest, mean) 
+```
+
+
+### Discussion
+Enlarging broods led to worse outcomes both for individual nestlings and for reproductive success of parents. 
+Nestlings in enlarged broods tended to be smaller in mass and skeletal size (tarsus length). Mass and tarsus length 
+were both significantly negatively associated with brood size. Parents of enlarged broods also
+fledged a smaller proportion of their broods compared to controls. On the other hand, nestlings in reduced 
+broods were not larger compared to controls, although they did seem more likely to survive to the next year, 
+suggesting that they did receive more or better care from their parents. Parents of enlarged broods 
+seemed unable or unwilling to increase care, which likely resulted in poorer quality nestlings and lower 
+fledging success. 
+
+The variance in quality among nestlings in the enlarged brood was likewise larger compared to controls, consistent 
+with the hypothesis that parents of enlarged broods struggled to care for all nestlings equally. It is difficult to determine, however, whether these results demonstrate that nestlings are competing within the brood. Although the fact 
+that having more siblings tended to reduce a nestling's condition and likelihood of fledging, that does not necessarily
+mean that nestlings were directly competing with one another. Parents may have limited their investment 
+in enlarged broods according to their own condition and/or opportunuties for future reproduction, leading 
+to poorer quality broods, independent of interactions between individual nestmates. However, the fact that 
+variance in quality was higher in reduced broods is consistent with the hypothesis that some nestlings in 
+enlarged broods were still managing to grow and develop at the expense of their nestmates. 
+
+Provisioning and begging data could help identify whether parents are feeding nestlings according to need or according to which nestling signals most vigorously. If parents feed the biggest and most active nestlings disproportionately, 
+that would be a strong indication that dominant nestlings can outcompete siblings for food. 
+
