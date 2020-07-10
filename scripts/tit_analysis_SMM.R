@@ -25,6 +25,10 @@ library(MuMIn)
 # Data
 # Missing data: I found and replaced '.' with "NA" in excel
 # before importing.
+#-rear_nest_breed_id 203455 had one nestling from year 2002, which was corrected to 2003
+#-rear_nest_breed_id 203182 was listed as 4 rear_Cs_at_start_of_rearing; corrected to 5
+#-rear_nest_breed_id 201105, rear_Cs listed as NA;
+#corrected to 8.
 
 tit <- read.csv("data/blue_tit_data_updated_2020-04-18.csv")
 
@@ -129,8 +133,7 @@ names(tit)
 
 # Make some linear models to analyze different measures of success
 # 1. Weight and tarsus of d. 14 chicks
-# 2. Number of chicks fledged from rearing nest
-# 3. Chick survival to next season
+# 2. Chick survival to next season
 #
 #
 # Fixed effects: rear_nest_trt,  hatch_nest_LD,
@@ -140,7 +143,7 @@ names(tit)
 # rearing brood
 
 
-
+head(tit)
 # Effects on mass:
 # Males are bigger, transplanted chicks are bigger (asynch hatch?)
 # Early nesters do better, negative effect of clutch size, Significant (ish)
@@ -194,7 +197,7 @@ summary(
 )
 
 
-# Analysis by clutch size -------------------------------------------------
+# Analysis by brood size -------------------------------------------------
 # The treatment randomizes and maximizes variation in clutch size. So let's just use
 # that as a covariate instead of treatment
 
@@ -239,12 +242,10 @@ nest <- dplyr::select(tit, hatch_year, rear_nest_breed_ID, rear_area, rear_Box, 
                rear_nest_trt, rear_nest_LD, rear_nest_CS,rear_d0_rear_nest_brood_size,
                rear_Cs_out, rear_Cs_in, net_rearing_manipulation, rear_Cs_at_start_of_rearing,
                d14_rear_nest_brood_size, number_chicks_fledged_from_rear_nest) %>% distinct()
+nest$died <- nest$rear_Cs_at_start_of_rearing - nest$number_chicks_fledged_from_rear_nest #change in brood size from start to d 14; i.e. dead nestlings
 
 nest[duplicated(nest$rear_nest_breed_ID),] # no duplicates = no issues in data entry
 head(nest)
-nest$died <- nest$rear_Cs_at_start_of_rearing - nest$number_chicks_fledged_from_rear_nest #change in brood size from start to d 14; i.e. dead nestlings
-
-
 
 # Variance in mass
 
