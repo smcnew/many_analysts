@@ -1,13 +1,7 @@
----
-title: "Many_Analysts"
-author: "Analyst: Sabrina McNew"
-date: "7/10/2020"
-output: html_document
----
-
+### Many_Analysis Project
 
 #### Project info: https://osf.io/34fzc/
-#### Contact: sm983@cornell.edu
+#### Contact: Sabrina McNew sm983@cornell.edu
   
 ### Project goals
 The goal of this project is to analyze a dataset of breeding blue tits 
