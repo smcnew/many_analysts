@@ -22,3 +22,10 @@ a brood varies with clutch size or treatment.
 -rear_nest_breed_id 203182 was listed as 4 rear_Cs_at_start_of_rearing; corrected to 5
 -rear_nest_breed_id 201105, rear_Cs listed as NA; 
 corrected to 8. 
+
+#### Important documents:
+- scripts/tit_analysis_SMM.R 
+Full R script containing data exploration and analysis.
+- Annotated_methods_results.html/Rmd 
+Markdown document explaining methods, results, and discussion with selected 
+R code 

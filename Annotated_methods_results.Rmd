@@ -2,10 +2,17 @@
 title: "Many_Analysts"
 author: 'Analyst: Sabrina McNew'
 date: "7/10/2020"
-output:
-  html_document: default
-  pdf_document: default
+output:  
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cerulean
+    code_folding: hide
 ---
+
+```{r setup, include = FALSE, message = FALSE, fig.show = 'hold'}
+  knitr::opts_chunk$set(echo = TRUE)
+```
 
 #### Project info: https://osf.io/34fzc/
 #### Contact: sm983@cornell.edu
@@ -38,7 +45,7 @@ However, overall the differences were minor. Finally, I checked for normality
 in continuously distributed response variables, such as tarsus. There were slight 
 departures from normality in both the control and brood-increased treatment 
 groups; however, these departures are common in ecological datasets and linear 
-models are fairly robust to small departures in normality (). 
+models are fairly robust to small departures in normality (Box 1976, J. Am. Stat Assoc.). 
 
 #### Analysis
 ```{r, echo = F, message=F}
@@ -56,7 +63,7 @@ and fitness (fledging success and next-year survival). Tarsus length and mass
 were modeled with a Gaussian distribution (i.e. LMM); fledging success and 
 next-year survival were modeled with a binomial distribution (i.e. logistic GLMM).  
 
-In addition to treatment, models included a suite of co-variates
+In addition to treatment, models included a suite of covariates
 that also could have influenced nestling size and fitness. Full models included 
 the fixed effects of treatment, hatch nest lay date, whether the nestling was in
 its hatch nest or whether it had been experimentally moved to another nest, the 
@@ -110,6 +117,13 @@ using a binomial GLMM where the response was the paired variable of the number o
 nestlings that fledged and the number that died for each nest. The model included 
 the fixed effects of rearing nest lay date as well as the random effects of year, rearing nest parent 
 ids, and rearing nest box nested within rearing nest area. 
+
+Several mixed-effects models reported the "boundary (singular) fit: see ?isSingular"
+warning. Singular fits can occur when the random effects structure is too complicated
+for the data. Being naive to the system, I included the full suite of random effects 
+that could create structure in the data. However, someone more familiar with the 
+system could potentially improve models by removing random effects that are unlikely
+to affect response variables. 
 
 ### Results
 
@@ -336,8 +350,7 @@ seemed unable or unwilling to increase care, which likely resulted in poorer qua
 fledging success. 
 
 The variance in quality among nestlings in the enlarged brood was likewise larger compared to controls, consistent 
-with the hypothesis that parents of enlarged broods struggled to care for all nestlings equally. It is difficult to determine, however, whether these results demonstrate that nestlings are competing within the brood. Although the fact 
-that having more siblings tended to reduce a nestling's condition and likelihood of fledging, that does not necessarily
+with the hypothesis that parents of enlarged broods struggled to care for all nestlings equally. It is difficult to determine, however, whether these results demonstrate that nestlings are competing within the brood. Although having more siblings tended to reduce a nestling's condition and likelihood of fledging, that does not necessarily
 mean that nestlings were directly competing with one another. Parents may have limited their investment 
 in enlarged broods according to their own condition and/or opportunuties for future reproduction, leading 
 to poorer quality broods, independent of interactions between individual nestmates. However, the fact that 
@@ -347,3 +360,10 @@ enlarged broods were still managing to grow and develop at the expense of their 
 Provisioning and begging data could help identify whether parents are feeding nestlings according to need or according to which nestling signals most vigorously. If parents feed the biggest and most active nestlings disproportionately, 
 that would be a strong indication that dominant nestlings can outcompete siblings for food. 
 
+### Citation and Session Info
+```{r}
+
+citation("lme4")
+citation("lmerTest")
+sessionInfo()
+```
