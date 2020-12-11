@@ -201,8 +201,8 @@ summary(
 # The treatment randomizes and maximizes variation in clutch size. So let's just use
 # that as a covariate instead of treatment
 
-summary(
-  lmer(
+### MAIN MODEL FOR USE IN PREDICTION ###
+main_mod <-  lmer(
     day_14_weight ~
       rear_Cs_at_start_of_rearing +
       hatch_nest_LD +
@@ -214,8 +214,10 @@ summary(
       (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
       (1 | rear_area / rear_Box),
     data = tit
-  )
-)
+  ) #%>% summary
+
+
+
 
 summary (lmer(
   day_14_tarsus_length ~

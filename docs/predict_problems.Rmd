@@ -1,0 +1,144 @@
+---
+title: "predict_issue"
+author: "Sabrina McNew"
+date: "12/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Project info: https://osf.io/34fzc/
+#### Contact: sm983@cornell.edu
+
+```{r, echo = F, message=F, cache = TRUE}
+library(lme4)
+library(lmerTest)
+library(dplyr)
+library(here)
+```
+
+```{r, echo = T, message=F, cache = TRUE}
+# load data 
+tit <- read.csv(here("data/blue_tit_data_updated_2020-04-18.csv"), stringsAsFactors = FALSE)
+
+# Turn these integer columns into factors
+tit <- tit %>%  mutate_at(
+  vars(
+    hatch_year,
+    Extra.pair_paternity,
+    rear_nest_trt,
+    home_or_away,
+    chick_sex_molec,
+    chick_survival_to_first_breed_season,
+    rear_mom_Ring,
+    rear_dad_Ring,
+    hatch_mom_Ring,
+    genetic_dad_ring_.WP_or_EP.,
+    rear_area,
+    rear_Box
+  ),
+  as.factor
+)
+tit$rear_nest_trt <- relevel(tit$rear_nest_trt, ref = "7")
+
+# Predictor data
+# Small but annoying issue with predictor data: warning "incomplete final line found by readTableHeader"
+# Solution: save as tsv (.txt), open in text editor, place cursor on last character
+# and press "enter."
+prediction_data <-read.table(here("data/blue_tit_percentiles_for_supplement_wide.txt"),
+                             header =T,
+                             stringsAsFactors = FALSE)
+prediction_data <- prediction_data  %>%  mutate_at(
+                                              vars(
+                                                hatch_year,
+                                                Extra.pair_paternity,
+                                                rear_nest_trt,
+                                                home_or_away,
+                                                chick_sex_molec,
+                                                chick_survival_to_first_breed_season,
+                                                rear_mom_Ring,
+                                                rear_dad_Ring,
+                                                hatch_mom_Ring,
+                                                genetic_dad_ring_.WP_or_EP.,
+                                                rear_area,
+                                                rear_Box
+                                                ),
+                                              as.factor)
+prediction_data$rear_nest_trt <- relevel(prediction_data$rear_nest_trt, ref = "7")
+
+prediction_data_orig <- prediction_data[1:3,] %>% droplevels # original predict data 
+prediction_data_fix <- prediction_data[2:4,] %>% droplevels # "corrected" predict data 
+
+```
+
+To illustrate the problem/solution I have loaded in predictor data with 4 rows:
+the first three are the ones loaded on OSF, and the fourth is modified by changing
+the first entry's hatch box and rear box from SW63 to SW116
+
+```{r, cache = TRUE}
+prediction_data_orig[,1:5]
+prediction_data_fix[,1:5]
+
+```
+
+Fit the model 
+```{r, cache = TRUE}
+main_mod <-  lmer(
+  day_14_weight ~
+    rear_Cs_at_start_of_rearing +
+    hatch_nest_LD +
+    home_or_away +
+    chick_sex_molec +
+    (1 | hatch_year) + (1 | rear_nest_breed_ID) +
+    (1 | rear_mom_Ring) + (1 | rear_dad_Ring) +
+    (1 | hatch_mom_Ring) + (1 | genetic_dad_ring_.WP_or_EP.) +
+    (1 | rear_area / rear_Box),
+  data = tit 
+)
+```
+
+Predict the model
+
+```{r, error=TRUE, message = FALSE, cache = TRUE}
+predict(main_mod,
+        type = "link",
+          newdata = prediction_data_orig) # generates error
+```
+
+Figure out where the error comes from 
+```{r, error = TRUE, message = FALSE, cache = TRUE}
+modeldf <- main_mod@frame
+list_predictors <- names(modeldf)
+# train and test variables are the same class 
+sapply(list_predictors, function(x) class(prediction_data_orig[,x]) == class(modeldf[,x])) 
+# check whether the test factor levels match training factor levels
+sapply(list_predictors, function(x) levels(prediction_data_orig[,x]) %in% levels(modeldf[,x]))
+
+# Looks like there's a problem with the rear_Box levels: 
+levels(prediction_data_orig[,"rear_Box"])
+
+## SW63 is not in the training dataset
+levels(prediction_data_orig[,"rear_Box"])[3] %in% levels(modeldf[,"rear_Box"])
+
+```
+
+So it looks like SW63 isn't in the training set, (in the model levels). 
+I checked on it and it is in the dataset but gets dropped when the model is 
+fit because it has some missing data. 
+
+What happens if I swap SW63 with another box that is in the training set? 
+```{r, error = TRUE, message = FALSE, cache = TRUE}
+predict(main_mod,
+        type = "link",
+          newdata = prediction_data_fix)
+```
+
+How do these differ from telling the predict to accept new levels?
+(Similar predictions, compare 1 v. 4)
+```{r, error = TRUE, message = FALSE, cache = TRUE}
+predict(main_mod,
+        type = "link",
+          newdata = prediction_data_orig, allow.new.levels =T)
+```
