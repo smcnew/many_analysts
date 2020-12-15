@@ -3,7 +3,7 @@
 ## Goal: extract point estimates and predicted values from my model
 
 # Packages
-
+library(readr)
 library(lme4)
 library(lmerTest)
 library(dplyr)
@@ -41,7 +41,7 @@ tit$rear_nest_trt <- relevel(tit$rear_nest_trt, ref = "7")
 # Small but annoying issue with predictor data: warning "incomplete final line found by readTableHeader"
 # Solution: save as tsv (.txt), open in text editor, place cursor on last character
 # and press "enter."
-prediction_data <-read.table("data/blue_tit_percentiles_for_supplement_wide.txt",
+prediction_data <-read.csv("data/blue_tit_percentiles_for_supplement_wide.csv",
                              header =T,
                              stringsAsFactors = FALSE)
 prediction_data <- prediction_data  %>%  mutate_at(
@@ -61,11 +61,8 @@ prediction_data <- prediction_data  %>%  mutate_at(
                                                 ),
                                               as.factor)
 prediction_data$rear_nest_trt <- relevel(prediction_data$rear_nest_trt, ref = "7")
-predictin_data <- prediction_data[1:3,]
-prediction_data_fixed <- prediction_data[2:4,]
-prediction_data_fixed <- droplevels(prediction_data_fixed)
-
 names(prediction_data) == names(tit) # make sure columns are the same
+
 
 # main model
 
@@ -95,26 +92,37 @@ all(names(prediction_data %>% dplyr::select(-scenario)) %in%
 
 predict(main_mod,
         type = "link",
-          newdata = prediction_data) # generates error
+          newdata = prediction_data)
 
-predict(main_mod,
-        type = "link",
-        newdata = prediction_data_fixed)
+# Generate SE and CIs
 
-predict(main_mod,
-        type = "link",
-        newdata = prediction_data, allow.new.levels =T ) # fix error
+sumBoot <- function(merBoot) {
+  out <- data.frame(
+    fit = apply(merBoot$t, 2, function(x)
+      as.numeric(quantile(x, probs=.5, na.rm=TRUE))),
+    lwr = apply(merBoot$t, 2, function(x)
+      as.numeric(quantile(x, probs=.025, na.rm=TRUE))),
+    upr = apply(merBoot$t, 2, function(x)
+      as.numeric(quantile(x, probs=.975, na.rm=TRUE)))
+  )
+  return(out)
+}
+
+# using merBoot
+merBoot <- lme4::bootMer(main_mod, FUN = function(x) predict(x, newdata = prediction_data,
+                                                         type = "link"), nsim = 1000)
+sumBoot(merBoot)  # but doesn't give SE, to get SE:
+std.err <- apply(merBoot$t, 2, sd)
+predictions <- sumBoot(merBoot) %>% cbind(std.err)
+
+predictions %>%
+  dplyr::mutate(scenario = c(1:3)) %>%
+  dplyr::rename(ci.low = lwr, ci.hi = upr, estimate = fit) %>%
+  dplyr::select(scenario, estimate, std.err, ci.low, ci.hi) %>%
+  readr::write_csv(., path = "predictions.csv")
 
 
+# Extracting df
+summary(main_mod)
 
-# Check predictors in train and test dfs to make sure levels match
-modeldf <- main_mod@frame
-list_predictors <- names(modeldf)
-sapply(list_predictors, function(x) class(prediction_data[,x]) == class(modeldf[,x])) # classes of all variables is the same
-sapply(list_predictors, function(x) levels(prediction_data[,x]) %in% levels(modeldf[,x])) # levels match; what's the problem??
-
-# Check all columns just in case
-allnames <- names(tit %>% dplyr::select(-chick_ring_number))
-sapply(allnames, function(x) levels(prediction_data[,x]) %in% levels(tit[,x])) # levels match; what's the problem??
-sapply(allnames, function(x) class(prediction_data[,x]) == class(tit[,x])) # classes of all variables is the same
-
+sessionInfo()
